@@ -465,6 +465,70 @@ main{
 }
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 @media(min-width:641px){.toast{bottom:24px}}
+
+/* ── PREVIEW / SHARE ── */
+.share-actions{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.share-btn{
+  height:32px;
+  padding:0 12px;
+  border-radius:var(--r8);
+  border:1px solid var(--border);
+  background:rgba(0,0,0,.3);
+  color:var(--text2);
+  font-family:'IBM Plex Sans Thai',sans-serif;
+  font-size:12px;
+  font-weight:500;
+  cursor:pointer;
+  transition:all .2s;
+  white-space:nowrap;
+}
+
+.share-btn:hover,
+.share-btn:active{
+  background:rgba(0,55,145,.5);
+  border-color:var(--border2);
+  color:var(--text);
+}
+
+.share-btn.primary{
+  background:linear-gradient(135deg,var(--ps-blue),var(--ps-blue2));
+  border-color:var(--blue-bright);
+  color:white;
+  box-shadow:var(--glow-sm);
+}
+
+.preview-badge{
+  display:none;
+  align-items:center;
+  gap:6px;
+  padding:5px 10px;
+  border-radius:var(--r999);
+  border:1px solid rgba(0,170,255,.45);
+  background:rgba(0,24,80,.75);
+  color:var(--blue-bright);
+  font-size:11px;
+  font-family:'IBM Plex Mono',monospace;
+  white-space:nowrap;
+}
+
+body.preview-mode .preview-badge{display:flex}
+body.preview-mode .fab,
+body.preview-mode .add-btn,
+body.preview-mode .card-foot,
+body.preview-mode .overlay{display:none!important}
+
+@media(max-width:640px){
+  .share-actions{gap:4px}
+  .share-btn{height:30px;padding:0 8px;font-size:11px}
+  .share-btn.copy-text{display:none}
+  .preview-badge{display:none!important}
+}
+
 </style>
 </head>
 <body>
@@ -485,6 +549,11 @@ main{
     <span id="conn-text" class="conn-text-full">Connecting</span>
   </div>
   <div class="topbar-right">
+    <div class="preview-badge" id="preview-badge">READ ONLY</div>
+    <div class="share-actions">
+      <button class="share-btn primary" id="preview-btn" type="button" onclick="openPreviewLink()">Preview</button>
+      <button class="share-btn copy-text" id="copy-preview-btn" type="button" onclick="copyPreviewLink()">คัดลอกลิงก์</button>
+    </div>
     <div class="page-tabs" id="page-tabs"></div>
   </div>
 </div>
@@ -557,6 +626,49 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
+
+const params = new URLSearchParams(window.location.search);
+const isPreviewMode = params.get('preview') === '1';
+
+if(isPreviewMode){
+  document.body.classList.add('preview-mode');
+}
+
+function getPreviewUrl(){
+  const url = new URL(window.location.href);
+  url.searchParams.set('preview','1');
+  return url.toString();
+}
+
+function getEditUrl(){
+  const url = new URL(window.location.href);
+  url.searchParams.delete('preview');
+  return url.toString();
+}
+
+window.openPreviewLink = () => {
+  if(isPreviewMode){
+    window.location.href = getEditUrl();
+    return;
+  }
+  window.open(getPreviewUrl(), '_blank', 'noopener');
+};
+
+window.copyPreviewLink = async () => {
+  const link = getPreviewUrl();
+  try{
+    await navigator.clipboard.writeText(link);
+    toast('✓ คัดลอกลิงก์ Preview แล้ว');
+  }catch(e){
+    const tmp = document.createElement('input');
+    tmp.value = link;
+    document.body.appendChild(tmp);
+    tmp.select();
+    document.execCommand('copy');
+    document.body.removeChild(tmp);
+    toast('✓ คัดลอกลิงก์ Preview แล้ว');
+  }
+};
 
 const PAGES = ['PSSP','JCP','TOC'];
 const PLATS = [
@@ -633,6 +745,7 @@ function toast(msg){
 }
 
 window.openModal = col => {
+  if(isPreviewMode){toast('โหมด Preview ดูได้อย่างเดียว');return;}
   addCol=col; renderColSelector();
   document.getElementById('m-title').value='';
   document.getElementById('m-cat').value='';
@@ -643,6 +756,7 @@ window.openModal = col => {
 window.closeModal = () => document.getElementById('overlay').classList.remove('open');
 window.setAddCol  = col => { addCol=col; renderColSelector(); };
 window.confirmAdd = async () => {
+  if(isPreviewMode){toast('โหมด Preview ดูได้อย่างเดียว');return;}
   if(adding) return;
   const t=document.getElementById('m-title').value.trim();
   const c=document.getElementById('m-cat').value.trim()||'ทั่วไป';
@@ -657,14 +771,17 @@ window.confirmAdd = async () => {
   adding=false; ok.disabled=false; ok.innerHTML='<span class="ps-sym sym-cross">✕</span> เพิ่มงาน';
 };
 window.promote = async (col,id) => {
+  if(isPreviewMode){toast('โหมด Preview ดูได้อย่างเดียว');return;}
   const i=COL_KEYS.indexOf(col); if(i>=2) return;
   await moveCard(col,id,COL_KEYS[i+1]); toast('▲ ย้ายงานแล้ว');
 };
 window.demote = async (col,id) => {
+  if(isPreviewMode){toast('โหมด Preview ดูได้อย่างเดียว');return;}
   const i=COL_KEYS.indexOf(col); if(i<=0) return;
   await moveCard(col,id,COL_KEYS[i-1]); toast('▼ ย้ายกลับแล้ว');
 };
 window.del = async (col,id) => {
+  if(isPreviewMode){toast('โหมด Preview ดูได้อย่างเดียว');return;}
   if(!confirm('ลบงานนี้?')) return;
   await delCard(col,id); toast('× ลบงานแล้ว');
 };
@@ -730,11 +847,12 @@ function renderKanban(){
           <div class="card-title">${esc(t.title)}</div>
           <div class="card-cat">${IC.tag} ${esc(t.cat)}</div>
           ${t.link?`<a class="card-link" href="${t.link}" target="_blank" rel="noopener">${IC.link} <span>${new URL(t.link).hostname.replace('www.','')}</span></a>`:''}
+          ${!isPreviewMode ? `
           <div class="card-foot">
             <button class="btn btn-del" onclick="del('${col.key}','${t.id}')">${IC.trash}</button>
             ${!isFirst?`<button class="btn" onclick="demote('${col.key}','${t.id}')">${IC.undo}</button>`:''}
             ${!isLast?`<button class="btn btn-promote" onclick="promote('${col.key}','${t.id}')">${promoteIcon} ${promoteLabel}</button>`:''}
-          </div>
+          </div>` : ''}
         </div>`).join('');
 
     return `
@@ -744,7 +862,7 @@ function renderKanban(){
           ${col.label}<span class="col-n">${list.length}</span>
         </div>
         <div class="card-stack">${cardHTML}</div>
-        <button class="add-btn" onclick="openModal('${col.key}')">${IC.plus} เพิ่มงานใหม่</button>
+        ${!isPreviewMode ? `<button class="add-btn" onclick="openModal('${col.key}')">${IC.plus} เพิ่มงานใหม่</button>` : ''}
       </div>`;
   }).join('');
 }
@@ -787,6 +905,11 @@ function render(){
   renderKanban();
   renderBottomNav();
   renderColSelector();
+
+  const previewBtn=document.getElementById('preview-btn');
+  const copyBtn=document.getElementById('copy-preview-btn');
+  if(previewBtn) previewBtn.textContent=isPreviewMode?'กลับโหมดแก้ไข':'Preview';
+  if(copyBtn) copyBtn.style.display=isPreviewMode?'none':'';
 }
 
 render();
